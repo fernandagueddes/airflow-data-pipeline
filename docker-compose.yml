@@ -1,0 +1,76 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: postgres_airflow
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  airflow-init:
+    image: apache/airflow:2.9.3
+    container_name: airflow_init
+    depends_on:
+      - postgres
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - ./etl:/opt/airflow/etl
+      - ./data:/opt/airflow/data
+    command: >
+      bash -c "airflow db migrate &&
+               airflow users create --username airflow --password airflow
+               --firstname Fernanda --lastname Guedes --role Admin
+               --email fernanda@example.com || true"
+
+  airflow-webserver:
+    image: apache/airflow:2.9.3
+    container_name: airflow_webserver
+    depends_on:
+      - postgres
+      - airflow-init
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      _PIP_ADDITIONAL_REQUIREMENTS: sqlalchemy psycopg2-binary
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - ./etl:/opt/airflow/etl
+      - ./data:/opt/airflow/data
+    command: bash -c "airflow webserver"
+
+  airflow-scheduler:
+    image: apache/airflow:2.9.3
+    container_name: airflow_scheduler
+    depends_on:
+      - postgres
+      - airflow-init
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      _PIP_ADDITIONAL_REQUIREMENTS: sqlalchemy psycopg2-binary
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - ./etl:/opt/airflow/etl
+      - ./data:/opt/airflow/data
+    command: bash -c "airflow scheduler"
+
+volumes:
+  pgdata:
